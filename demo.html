@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Range Finder Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Virtual Range Finder</h1>
+        <p>Rotate the sensor to measure the distance to the wall.</p>
+        
+        <div class="canvas-container">
+            <canvas id="robotCanvas" width="500" height="400"></canvas>
+        </div>
+
+        <div class="controls">
+            <label for="angleSlider">Sensor Angle (Degrees): <span id="angleValue">0</span>°</label>
+            <input type="range" id="angleSlider" min="-90" max="90" value="0">
+        </div>
+
+        <div class="readout">
+            <h2>Calculated Distance: <span id="distanceValue">--</span> cm</h2>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
