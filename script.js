@@ -15,6 +15,9 @@ const robotX = 50;  // Actual Robot Position
 const robotY = canvas.height / 2;
 const wallX = 400;  // Known Map Feature
 
+// Animation Timing Variable
+let lastUpdate = 0;
+
 function draw() {
     // 1. Setup Canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -110,10 +113,7 @@ function draw() {
         ctx.fill();
     }
     
-    // Animate noise if fusion is on
-    if(fusionToggle.checked) {
-        requestAnimationFrame(draw);
-    }
+    // NOTE: Removed the recursive requestAnimationFrame from here!
 }
 
 function updateText(trueD, noisyD, finalD, locX) {
@@ -127,9 +127,32 @@ function updateText(trueD, noisyD, finalD, locX) {
     noisyEl.style.display = fusionToggle.checked ? 'block' : 'none';
 }
 
+// --- NEW ANIMATION LOGIC (The Slow Motion Fix) ---
+function animate(timestamp) {
+    // Only redraw if 300ms have passed (approx 3 frames per second)
+    if (timestamp - lastUpdate > 300) { 
+        draw();
+        lastUpdate = timestamp;
+    }
+    
+    // Keep looping if the box is checked
+    if(fusionToggle.checked) {
+        requestAnimationFrame(animate);
+    }
+}
+
 // Event Listeners
 slider.addEventListener('input', draw);
-fusionToggle.addEventListener('change', draw);
+
+fusionToggle.addEventListener('change', () => {
+    if(fusionToggle.checked) {
+        // Start the slow loop
+        requestAnimationFrame(animate);
+    } else {
+        // Stop the loop and draw one clean static frame
+        draw(); 
+    }
+});
 
 // Initial Draw
 draw();
