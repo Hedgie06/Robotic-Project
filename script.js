@@ -11,58 +11,65 @@ const finalDistDisp = document.getElementById('finalDist');
 const locXDisp = document.getElementById('locX');
 
 // Configuration
-const robotX = 50;  // Actual Robot Position
+const robotX = 50;  
 const robotY = canvas.height / 2;
-const wallX = 400;  // Known Map Feature
+const wallX = 400;  
 
-// Animation Timing Variable
-let lastUpdate = 0;
+// STATE VARIABLES
+let currentNoise = 0;       // Holds the current noise value
+let lastNoiseUpdate = 0;    // Tracks when we last changed the noise
 
-function draw() {
-    // 1. Setup Canvas
+function draw(timestamp) {
+    // 1. SETUP CANVAS
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     // Draw Wall
     ctx.fillStyle = "#555";
     ctx.fillRect(wallX, 0, 20, canvas.height);
-    // Draw Wall Label
     ctx.fillStyle = "#fff";
     ctx.font = "12px Arial";
     ctx.fillText("Fixed Wall (x=400)", wallX - 90, 20);
 
-    // 2. Get Input Angle
+    // 2. CALCULATE GEOMETRY
     let angleDeg = parseInt(slider.value);
     angleDisplay.innerText = angleDeg;
     let angleRad = angleDeg * (Math.PI / 180);
 
-    // 3. Calculate TRUE Geometry (The "Perfect" Sensor)
     let dx = wallX - robotX;
-    // dist = dx / cos(theta)
     let trueDistance = Math.abs(dx / Math.cos(angleRad));
     let dy = dx * Math.tan(angleRad);
     let targetY = robotY + dy;
-
-    // Check bounds (if beam hits floor/ceiling)
     let validHit = (targetY >= 0 && targetY <= canvas.height);
 
-    // 4. Draw Robot
+    // 3. DRAW ROBOT
     ctx.fillStyle = "blue";
     ctx.beginPath();
     ctx.arc(robotX, robotY, 15, 0, Math.PI * 2);
     ctx.fill();
 
-    // 5. Sensor Logic
+    // 4. UPDATE NOISE (The Slow Motion Logic)
+    // Only generate new noise every 500 milliseconds (0.5 seconds)
+    if (fusionToggle.checked) {
+        if (!timestamp) timestamp = performance.now(); // Handle initial call
+        if (timestamp - lastNoiseUpdate > 500) { 
+            // Generate new random noise (-15 to +15)
+            currentNoise = (Math.random() - 0.5) * 30; 
+            lastNoiseUpdate = timestamp;
+        }
+    } else {
+        currentNoise = 0; // Reset if unchecked
+    }
+
+    // 5. DRAW BEAMS & TEXT
     if (!validHit) {
-        // Out of range handling
         ctx.strokeStyle = "red";
         ctx.beginPath();
         ctx.moveTo(robotX, robotY);
         ctx.lineTo(robotX + Math.cos(angleRad) * 500, robotY + Math.sin(angleRad) * 500);
         ctx.stroke();
-        
         updateText("Out of Range", "--", "--", "Unknown");
     } else {
-        // --- A. Draw Perfect Beam (Green) ---
+        // A. Green Beam (Fused/Stable)
         ctx.beginPath();
         ctx.moveTo(robotX, robotY);
         ctx.lineTo(wallX, targetY);
@@ -70,35 +77,29 @@ function draw() {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // --- B. Sensor Fusion Logic ---
         let displayDist = trueDistance;
         let noisyDist = "--";
-        
+
         if (fusionToggle.checked) {
-            // Simulate Sensor 2 (Noisy/Ultrasonic)
-            // Adds random noise between -15cm and +15cm
-            let noise = (Math.random() - 0.5) * 30; 
-            let reading2 = trueDistance + noise;
+            // Use the SLOW changing currentNoise
+            let reading2 = trueDistance + currentNoise;
             
-            // FUSION: Average the two readings
+            // Average them
             displayDist = (trueDistance + reading2) / 2;
             noisyDist = reading2.toFixed(1);
 
-            // Draw "Noisy" Ghost Beam (Orange, semi-transparent)
-            // We jitter the Y target slightly to visualize noise
+            // B. Orange Beam (Noisy)
             ctx.beginPath();
             ctx.moveTo(robotX, robotY);
-            ctx.lineTo(wallX, targetY + noise); // Jitter visual
-            ctx.strokeStyle = "rgba(255, 165, 0, 0.5)";
+            ctx.lineTo(wallX, targetY + currentNoise); 
+            ctx.strokeStyle = "rgba(255, 165, 0, 0.6)"; // More opaque to see better
             ctx.lineWidth = 4;
             ctx.stroke();
         }
 
-        // --- C. Localization Logic ---
-        // Formula: RobotX = WallX - (MeasuredDistance * cos(angle))
+        // C. Localization
         let estimatedX = wallX - (displayDist * Math.cos(angleRad));
         
-        // Update UI
         updateText(
             trueDistance.toFixed(1), 
             noisyDist, 
@@ -106,14 +107,16 @@ function draw() {
             estimatedX.toFixed(0) + " (Actual: 50)"
         );
 
-        // Draw Hit Point
         ctx.fillStyle = "red";
         ctx.beginPath();
         ctx.arc(wallX, targetY, 5, 0, Math.PI*2);
         ctx.fill();
     }
-    
-    // NOTE: Removed the recursive requestAnimationFrame from here!
+
+    // Keep the animation loop running to check the time
+    if (fusionToggle.checked) {
+        requestAnimationFrame(draw);
+    }
 }
 
 function updateText(trueD, noisyD, finalD, locX) {
@@ -122,35 +125,19 @@ function updateText(trueD, noisyD, finalD, locX) {
     finalDistDisp.innerText = finalD;
     locXDisp.innerText = locX;
     
-    // Toggle visibility of noisy data
     const noisyEl = document.querySelector('.noisy-data');
     noisyEl.style.display = fusionToggle.checked ? 'block' : 'none';
 }
 
-// --- NEW ANIMATION LOGIC (The Slow Motion Fix) ---
-function animate(timestamp) {
-    // Only redraw if 300ms have passed (approx 3 frames per second)
-    if (timestamp - lastUpdate > 300) { 
-        draw();
-        lastUpdate = timestamp;
-    }
-    
-    // Keep looping if the box is checked
-    if(fusionToggle.checked) {
-        requestAnimationFrame(animate);
-    }
-}
-
 // Event Listeners
-slider.addEventListener('input', draw);
+slider.addEventListener('input', () => { draw(); }); // Draw immediately on slide
 
 fusionToggle.addEventListener('change', () => {
     if(fusionToggle.checked) {
-        // Start the slow loop
-        requestAnimationFrame(animate);
+        lastNoiseUpdate = 0; // Force immediate update
+        requestAnimationFrame(draw);
     } else {
-        // Stop the loop and draw one clean static frame
-        draw(); 
+        draw();
     }
 });
 
